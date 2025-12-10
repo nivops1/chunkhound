@@ -43,6 +43,7 @@ from chunkhound.parsers.mappings import (
     PHPMapping,
     PythonMapping,
     RustMapping,
+    SvelteMapping,
     SwiftMapping,
     TextMapping,
     TomlMapping,
@@ -342,6 +343,25 @@ except ImportError:
     ts_dart = None
     DART_AVAILABLE = False
 
+try:
+    from tree_sitter_language_pack import get_language
+
+    _svelte_lang = get_language("svelte")
+    if _svelte_lang:
+        # Create a module-like wrapper for compatibility with LanguageConfig
+        class _SvelteLanguageWrapper:
+            def language(self):
+                return _svelte_lang
+
+        ts_svelte = _SvelteLanguageWrapper()
+        SVELTE_AVAILABLE = True
+    else:
+        ts_svelte = None
+        SVELTE_AVAILABLE = False
+except ImportError:
+    ts_svelte = None
+    SVELTE_AVAILABLE = False
+
 
 # Additional language extensions (these might use the same parser as base language)
 JSX_AVAILABLE = JAVASCRIPT_AVAILABLE  # JSX uses JavaScript parser
@@ -430,6 +450,11 @@ class LanguageConfig:
             lang_func = self.tree_sitter_module.language_tsx
             result = lang_func() if callable(lang_func) else lang_func
             return self._handle_language_result(result)
+        elif self.language_name in ("vue", "svelte"):
+            # Vue and Svelte use TypeScript parser for script sections
+            lang_func = self.tree_sitter_module.language_typescript
+            result = lang_func() if callable(lang_func) else lang_func
+            return self._handle_language_result(result)
         elif self.language_name == "javascript" and hasattr(
             self.tree_sitter_module, "language_javascript"
         ):
@@ -489,6 +514,9 @@ LANGUAGE_CONFIGS: dict[Language, LanguageConfig] = {
     Language.VUE: LanguageConfig(
         ts_typescript, VueMapping, TYPESCRIPT_AVAILABLE, "vue"
     ),  # Vue uses TypeScript parser for script sections
+    Language.SVELTE: LanguageConfig(
+        ts_typescript, SvelteMapping, TYPESCRIPT_AVAILABLE, "svelte"
+    ),  # Svelte uses TypeScript parser for script sections (like Vue)
     Language.JSON: LanguageConfig(ts_json, JsonMapping, JSON_AVAILABLE, "json"),
     Language.YAML: LanguageConfig(ts_yaml, YamlMapping, YAML_AVAILABLE, "yaml"),
     Language.TOML: LanguageConfig(ts_toml, TomlMapping, TOML_AVAILABLE, "toml"),
@@ -578,6 +606,7 @@ EXTENSION_TO_LANGUAGE: dict[str, Language] = {
     ".swift": Language.SWIFT,
     ".swiftinterface": Language.SWIFT,
     ".vue": Language.VUE,
+    ".svelte": Language.SVELTE,
     # Config & Data
     ".json": Language.JSON,
     ".yaml": Language.YAML,
